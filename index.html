@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0f0f1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>内科専門医 一問一答</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ─── スタート画面 ─── -->
+    <section id="screen-start" class="screen">
+      <header class="title">
+        <h1>内科専門医<br>一問一答</h1>
+        <p class="subtitle">QBnote ベース</p>
+      </header>
+      <div class="card">
+        <h2>診療科</h2>
+        <div class="category-grid" id="categories-container"></div>
+      </div>
+      <div class="card">
+        <h2>出題数</h2>
+        <div class="count-grid" id="count-container">
+          <button class="count-btn" data-count="10">10問</button>
+          <button class="count-btn" data-count="20">20問</button>
+          <button class="count-btn" data-count="30">30問</button>
+          <button class="count-btn active" data-count="50">50問</button>
+        </div>
+      </div>
+      <button id="start-btn" class="primary-btn">スタート →</button>
+      <footer class="meta">
+        <span id="data-version">v—</span>
+      </footer>
+    </section>
+
+    <!-- ─── 問題画面 ─── -->
+    <section id="screen-quiz" class="screen hidden">
+      <header class="quiz-header">
+        <div class="progress">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-text">
+          <span><span id="progress-current">1</span> / <span id="progress-total">10</span></span>
+          <span class="quiz-category" id="quiz-category">—</span>
+        </div>
+      </header>
+      <div class="quiz-content">
+        <div class="question-card">
+          <div class="question-id" id="question-id"></div>
+          <div class="question-text" id="question-text"></div>
+          <div class="question-type" id="question-type"></div>
+        </div>
+        <div class="answer-area" id="answer-area"></div>
+        <div class="feedback hidden" id="feedback">
+          <div class="feedback-result" id="feedback-result"></div>
+          <div class="feedback-answer" id="feedback-answer"></div>
+          <button class="primary-btn" id="next-btn">次へ →</button>
+        </div>
+      </div>
+      <button class="quit-btn" id="quit-btn">中断</button>
+    </section>
+
+    <!-- ─── 結果画面 ─── -->
+    <section id="screen-result" class="screen hidden">
+      <header class="title">
+        <h1>結果</h1>
+      </header>
+      <div class="card result-summary">
+        <div class="big-score">
+          <span id="score-correct">0</span> / <span id="score-total">0</span>
+        </div>
+        <div class="score-rate" id="score-rate">0%</div>
+      </div>
+      <div class="card">
+        <h2>診療科別</h2>
+        <div id="category-stats"></div>
+      </div>
+      <button id="restart-btn" class="primary-btn">もう一度</button>
+    </section>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
