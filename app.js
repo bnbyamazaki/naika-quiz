@@ -1,15 +1,20 @@
-// 内科専門医 一問一答アプリ
+// 内科専門医 一問一答アプリ v2.0.0
 // データ: window.QB_DATA（data.js）
+//
+// v2 変更点:
+//   - ○×:4択 = 1:4（20% / 80%）
+//   - ダミー選択肢ハイブリッド：同id優先 → 同カテゴリ + 類似度 → ランダム
+//   - 回答後 Note表示：同idの他短文一覧 + source_note relation リンク
 
 'use strict';
 
 const State = {
   data: null,
-  selectedCategories: new Set(),  // 空 = 全診療科
+  selectedCategories: new Set(),
   selectedCount: 50,
   questions: [],
   currentIndex: 0,
-  results: [],   // { item, type, userAnswer, correctAnswer, isCorrect }
+  results: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -32,14 +37,12 @@ function buildCategoryButtons() {
   const container = $('categories-container');
   container.innerHTML = '';
 
-  // 「全診療科」
   const allBtn = document.createElement('button');
   allBtn.className = 'category-btn all active';
   allBtn.textContent = `全診療科 (${State.data.total})`;
   allBtn.dataset.cat = '__all__';
   container.appendChild(allBtn);
 
-  // 各カテゴリ
   for (const cat of State.data.categories) {
     const btn = document.createElement('button');
     btn.className = 'category-btn';
@@ -51,19 +54,13 @@ function buildCategoryButtons() {
 }
 
 function bindEvents() {
-  // カテゴリ
   $('categories-container').addEventListener('click', onCategoryClick);
-  // 出題数
   $('count-container').addEventListener('click', onCountClick);
-  // 開始
   $('start-btn').addEventListener('click', startQuiz);
-  // 次へ
   $('next-btn').addEventListener('click', nextQuestion);
-  // 中断
   $('quit-btn').addEventListener('click', () => {
     if (confirm('セッションを中断して最初に戻りますか?')) showScreen('start');
   });
-  // もう一度
   $('restart-btn').addEventListener('click', () => showScreen('start'));
 }
 
@@ -126,7 +123,8 @@ function startQuiz() {
 // 出題生成
 // ─────────────────────────────────────────
 function buildQuestion(item, allItems) {
-  const type = Math.random() < 0.5 ? 'tf' : '4ch';
+  // v2: ○×:4択 = 1:4
+  const type = Math.random() < 0.2 ? 'tf' : '4ch';
   if (type === 'tf') return buildTF(item, allItems);
   return build4ch(item, allItems);
 }
@@ -134,41 +132,74 @@ function buildQuestion(item, allItems) {
 function buildTF(item, allItems) {
   const isTrue = Math.random() < 0.5;
   if (isTrue) {
-    return {
-      item,
-      type: 'tf',
-      statement: item.back,
-      correctAnswer: '○',
-    };
+    return { item, type: 'tf', statement: item.back, correctAnswer: '○' };
   }
-  // 偽の文を作る: 同categoryの別back優先、なければ全体から
+  // 偽文：類似度高いback優先
   let pool = allItems.filter(o => o.back !== item.back && o.category === item.category);
-  if (pool.length === 0) {
-    pool = allItems.filter(o => o.back !== item.back);
-  }
-  const fake = pool[Math.floor(Math.random() * pool.length)];
-  return {
-    item,
-    type: 'tf',
-    statement: fake.back,
-    correctAnswer: '×',
-  };
+  if (pool.length === 0) pool = allItems.filter(o => o.back !== item.back);
+  // 類似度でランキング
+  const scored = pool.map(o => ({ o, score: similarity(item, o) }));
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(scored.length, 5);
+  const fake = scored[Math.floor(Math.random() * topN)].o;
+  return { item, type: 'tf', statement: fake.back, correctAnswer: '×' };
 }
 
 function build4ch(item, allItems) {
-  let pool = allItems.filter(o => o.back !== item.back && o.category === item.category);
-  if (pool.length < 3) {
-    const extras = allItems.filter(o => o.back !== item.back && o.category !== item.category);
-    pool = pool.concat(shuffle(extras).slice(0, 3 - pool.length));
+  const distractors = [];
+  const usedBacks = new Set([item.back]);
+
+  // Step 1: 同id優先（最大1つ）— Barter/Liddle/17α-OH のような兄弟設問を最優先
+  const sameIdPool = allItems.filter(o => o.id === item.id && !usedBacks.has(o.back));
+  if (sameIdPool.length > 0) {
+    const pick = sameIdPool[Math.floor(Math.random() * sameIdPool.length)];
+    distractors.push(pick.back);
+    usedBacks.add(pick.back);
   }
-  const distractors = shuffle(pool).slice(0, 3).map(o => o.back);
+
+  // Step 2: 同カテゴリ + キーワード類似度
+  const sameCatPool = allItems.filter(o => o.category === item.category && !usedBacks.has(o.back));
+  const scored = sameCatPool.map(o => ({ o, score: similarity(item, o) }));
+  scored.sort((a, b) => b.score - a.score);
+  // 上位8からランダムに選ぶ（多様性確保）
+  const topN = Math.min(scored.length, 8);
+  const top = shuffle(scored.slice(0, topN));
+  for (const c of top) {
+    if (distractors.length >= 3) break;
+    if (!usedBacks.has(c.o.back)) {
+      distractors.push(c.o.back);
+      usedBacks.add(c.o.back);
+    }
+  }
+
+  // Step 3: 不足分はランダム
+  if (distractors.length < 3) {
+    const remaining = shuffle(allItems.filter(o => !usedBacks.has(o.back)));
+    for (const o of remaining) {
+      if (distractors.length >= 3) break;
+      distractors.push(o.back);
+      usedBacks.add(o.back);
+    }
+  }
+
   const choices = shuffle([item.back, ...distractors]);
-  return {
-    item,
-    type: '4ch',
-    choices,
-    correctAnswer: item.back,
+  return { item, type: '4ch', choices, correctAnswer: item.back };
+}
+
+// 文字バイグラムによるJaccard類似度（簡易）
+function similarity(a, b) {
+  const grams = (s) => {
+    const norm = (s || '').replace(/\s/g, '');
+    const set = new Set();
+    for (let i = 0; i < norm.length - 1; i++) set.add(norm.substr(i, 2));
+    return set;
   };
+  const A = grams((a.front || '') + (a.back || ''));
+  const B = grams((b.front || '') + (b.back || ''));
+  if (A.size === 0 || B.size === 0) return 0;
+  let common = 0;
+  A.forEach(g => { if (B.has(g)) common++; });
+  return common / (A.size + B.size - common);
 }
 
 // ─────────────────────────────────────────
@@ -246,7 +277,6 @@ function render4ch(q, area) {
 // 解答処理
 // ─────────────────────────────────────────
 function handleAnswer(userAnswer) {
-  // 二重解答防止：同じ問題ですでに回答済みなら無視
   if (State.results.length > State.currentIndex) return;
   const q = State.questions[State.currentIndex];
   if (!q) return;
@@ -260,7 +290,6 @@ function handleAnswer(userAnswer) {
     isCorrect,
   });
 
-  // ボタンを無効化＋色付け
   document.querySelectorAll('.tf-btn, .choice-btn').forEach(btn => {
     btn.disabled = true;
     if (btn.dataset.answer === q.correctAnswer) {
@@ -291,8 +320,55 @@ function showFeedback(q, isCorrect) {
   } else {
     ans.innerHTML = `<span class="label">正解</span><strong>${esc(q.correctAnswer)}</strong>`;
   }
-  // スクロールで「次へ」を見せる
+
+  // ── Note表示（v2新機能）──
+  renderNote(q.item);
+
   fb.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+// 同idの他短文一覧 + source_noteリンク表示
+function renderNote(item) {
+  const noteEl = $('note-area');
+  noteEl.innerHTML = '';
+  let hasContent = false;
+
+  // 同id他短文
+  const sameId = State.data.items.filter(o => o.id === item.id && o.front !== item.front);
+  if (sameId.length > 0) {
+    const title = document.createElement('div');
+    title.className = 'note-title';
+    title.textContent = `📚 同じ出典の他の知識（${item.id}）`;
+    noteEl.appendChild(title);
+    const list = document.createElement('div');
+    list.className = 'note-list';
+    sameId.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'note-row';
+      row.innerHTML = `<div class="note-q">${esc(s.front)}</div><div class="note-a">${esc(s.back)}</div>`;
+      list.appendChild(row);
+    });
+    noteEl.appendChild(list);
+    hasContent = true;
+  }
+
+  // source_note (Notion まとめページ)
+  if (item.source_note_url) {
+    const title = document.createElement('div');
+    title.className = 'note-title';
+    title.textContent = '📖 関連まとめNote';
+    noteEl.appendChild(title);
+    const link = document.createElement('a');
+    link.className = 'note-link';
+    link.href = item.source_note_url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'Notionで開く →';
+    noteEl.appendChild(link);
+    hasContent = true;
+  }
+
+  noteEl.classList.toggle('hidden', !hasContent);
 }
 
 function esc(s) {
@@ -305,14 +381,12 @@ function esc(s) {
 // 次へ / 結果
 // ─────────────────────────────────────────
 function nextQuestion() {
-  // 結果画面表示中の二重進行防止
   if (State.currentIndex >= State.questions.length) return;
   State.currentIndex++;
   if (State.currentIndex >= State.questions.length) {
     showResult();
   } else {
     renderQuestion();
-    // 画面を上にスクロール
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 }
@@ -328,7 +402,6 @@ function showResult() {
   $('score-total').textContent = total;
   $('score-rate').textContent = `${rate}%`;
 
-  // 診療科別
   const catMap = {};
   for (const r of State.results) {
     const c = r.item.category;
@@ -341,17 +414,14 @@ function showResult() {
   statsEl.innerHTML = '';
   const entries = Object.entries(catMap).sort((a, b) => (b[1].correct / b[1].total) - (a[1].correct / a[1].total));
   for (const [cat, s] of entries) {
-    const rate = Math.round((s.correct / s.total) * 100);
+    const r = Math.round((s.correct / s.total) * 100);
     const el = document.createElement('div');
-    el.className = `cat-stat ${rate >= 80 ? 'good' : rate < 60 ? 'poor' : ''}`;
-    el.innerHTML = `<span class="cat-name">${esc(cat)}</span><span class="cat-score">${s.correct}/${s.total} · ${rate}%</span>`;
+    el.className = `cat-stat ${r >= 80 ? 'good' : r < 60 ? 'poor' : ''}`;
+    el.innerHTML = `<span class="cat-name">${esc(cat)}</span><span class="cat-score">${s.correct}/${s.total} · ${r}%</span>`;
     statsEl.appendChild(el);
   }
 }
 
-// ─────────────────────────────────────────
-// 画面切替・ユーティリティ
-// ─────────────────────────────────────────
 function showScreen(name) {
   ['start', 'quiz', 'result'].forEach(s => {
     $(`screen-${s}`).classList.toggle('hidden', s !== name);
@@ -368,5 +438,4 @@ function shuffle(arr) {
   return a;
 }
 
-// 起動
 window.addEventListener('DOMContentLoaded', init);

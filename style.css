@@ -379,6 +379,83 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* Note表示エリア (v2) */
+.note-area {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(76, 201, 240, 0.06);
+  border: 1px solid rgba(76, 201, 240, 0.18);
+  border-radius: 10px;
+}
+
+.note-area.hidden { display: none; }
+
+.note-title {
+  font-size: 11px;
+  color: var(--primary);
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  margin-top: 10px;
+}
+
+.note-title:first-child { margin-top: 0; }
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.note-row {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.note-q {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.note-q::before {
+  content: "Q ";
+  color: var(--muted);
+  font-weight: 400;
+  margin-right: 4px;
+}
+
+.note-a {
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.note-a::before {
+  content: "→ ";
+  color: var(--primary);
+  margin-right: 4px;
+}
+
+.note-link {
+  display: inline-block;
+  background: var(--primary-dim);
+  color: var(--primary);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-decoration: none;
+  font-weight: 600;
+  border: 1px solid var(--primary);
+  margin-top: 2px;
+}
+
+.note-link:active {
+  transform: scale(0.97);
+}
+
 /* 中断ボタン */
 .quit-btn {
   background: transparent;
